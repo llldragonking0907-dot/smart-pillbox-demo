@@ -1,0 +1,1622 @@
+<!-- 智能药箱MVP演示Demo - 笔试提交版 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>华润三九智能药箱 × LLM 看护 - 最小可行性演示Demo (笔试提交版)</title>
+  
+  <style>
+    /* 全局重置与极简医疗健康风调色板（纯内建CSS，100%免联网秒开） */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+      line-height: 1.5;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    button, input, select, textarea {
+      font-family: inherit;
+    }
+
+    /* 布局系统 */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    .header {
+      height: 56px;
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      z-index: 20;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .main-workspace {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    .left-panel {
+      width: 60%;
+      height: 100%;
+      background: #f8fafc;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    .right-panel {
+      width: 40%;
+      height: 100%;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 20px;
+      overflow-y: auto;
+      border-left: 1px solid #1e293b;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 选项卡导航 */
+    .tab-bar {
+      height: 44px;
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .tab-nav {
+      display: flex;
+      gap: 16px;
+    }
+    .tab-btn {
+      padding: 10px 4px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-size: 13px;
+      font-weight: 500;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      color: #0f766e;
+      border-bottom-color: #0d9488;
+      font-weight: 700;
+    }
+    .tab-btn:hover {
+      color: #0f172a;
+    }
+
+    /* 内容滚动区 */
+    .content-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* 卡片与组件基础 */
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-teal { background: #f0fdfa; color: #0f766e; border: 1px solid #ccfbf1; }
+    .badge-amber { background: #fffbeb; color: #b45309; border: 1px solid #fef3c7; }
+    .badge-red { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+    .badge-gray { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+
+    /* 按钮规范 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease-in-out;
+    }
+    .btn-teal { background: #0d9488; color: #ffffff; }
+    .btn-teal:hover { background: #0f766e; }
+    .btn-amber { background: #f59e0b; color: #ffffff; }
+    .btn-amber:hover { background: #d97706; }
+    .btn-red { background: #ef4444; color: #ffffff; }
+    .btn-red:hover { background: #dc2626; }
+    .btn-outline { background: #ffffff; border-color: #cbd5e1; color: #334155; }
+    .btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+    /* 物理药箱 2×2 仿真网格 */
+    .box-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 10px;
+    }
+    .chamber-card {
+      background: rgba(51, 65, 85, 0.6);
+      border: 2px solid #475569;
+      border-radius: 12px;
+      padding: 14px;
+      height: 112px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    .chamber-num {
+      font-size: 24px;
+      font-weight: 900;
+      font-family: monospace;
+      line-height: 1;
+    }
+
+    /* 状态光效动画 */
+    @keyframes pulse-amber {
+      0%, 100% { box-shadow: 0 0 14px rgba(245, 158, 11, 0.4), inset 0 0 10px rgba(245, 158, 11, 0.3); border-color: #fbbf24; }
+      50% { box-shadow: 0 0 32px rgba(245, 158, 11, 0.95), inset 0 0 20px rgba(245, 158, 11, 0.6); border-color: #f59e0b; }
+    }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 14px rgba(239, 68, 68, 0.4), inset 0 0 10px rgba(239, 68, 68, 0.3); border-color: #f87171; }
+      50% { box-shadow: 0 0 32px rgba(239, 68, 68, 0.95), inset 0 0 22px rgba(239, 68, 68, 0.6); border-color: #ef4444; }
+    }
+    @keyframes flash-twice {
+      0%, 100% { opacity: 1; }
+      25%, 75% { opacity: 0.2; }
+      50% { opacity: 1; }
+    }
+    .chamber-active {
+      background: rgba(120, 53, 15, 0.8) !important;
+      animation: pulse-amber 1.8s infinite ease-in-out;
+      color: #fef3c7 !important;
+    }
+    .chamber-completed {
+      background: rgba(19, 78, 74, 0.85) !important;
+      border-color: #14b8a6 !important;
+      color: #99f6e4 !important;
+    }
+    .chamber-timeout {
+      background: rgba(127, 29, 29, 0.9) !important;
+      animation: pulse-red 1s infinite ease-in-out;
+      color: #fee2e2 !important;
+    }
+    .chamber-mistouch {
+      background: rgba(120, 53, 15, 0.95) !important;
+      border-color: #f59e0b !important;
+      animation: flash-twice 0.8s ease-in-out;
+    }
+
+    /* 控制台操作网格 */
+    .control-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .ctrl-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 10px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .ctrl-btn:hover:not(:disabled) {
+      background: #334155;
+      border-color: #64748b;
+    }
+    .ctrl-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* 模态弹窗 */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(2px);
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-box {
+      background: #ffffff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 820px;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    /* 悬浮 AI 助手 */
+    .fab-ai {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #f59e0b;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 15px -3px rgba(245, 158, 11, 0.4);
+      cursor: pointer;
+      z-index: 30;
+      transition: transform 0.2s;
+    }
+    .fab-ai:hover {
+      transform: scale(1.08);
+      background: #d97706;
+    }
+    .chat-drawer {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: 340px;
+      height: 400px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e2e8f0;
+      z-index: 35;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container" id="app">
+    
+    <!-- 顶部全局导航栏 -->
+    <header class="header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button id="btn-back" style="display: none; background: none; border: none; cursor: pointer; padding: 4px; color: #64748b;" title="返回主页">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div style="width: 34px; height: 34px; border-radius: 8px; background: #0d9488; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px;">
+          999
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h1 style="font-size: 15px; font-weight: 700; color: #0f172a;">华润三九智能药箱</h1>
+            <span class="badge badge-teal">子女端看护控制台</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <!-- 长辈切换器 -->
+        <div style="display: flex; align-items: center; gap: 6px; background: #f8fafc; padding: 4px 10px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px;">
+          <span style="color: #64748b;">当前长辈:</span>
+          <select id="select-profile" style="background: transparent; border: none; font-weight: 700; color: #0f172a; cursor: pointer; outline: none;">
+            <option value="father">父亲 (张建国 · 68岁)</option>
+            <option value="mother">母亲 (李秀兰 · 65岁)</option>
+          </select>
+          <button id="btn-open-profile-modal" style="background: none; border: none; color: #0d9488; cursor: pointer; font-size: 11px; font-weight: 600;">
+            修改档案
+          </button>
+        </div>
+
+        <!-- 设备在线状态标签 -->
+        <div id="device-status-badge" class="badge badge-teal">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #0d9488;"></span>
+          <span id="device-status-text">设备在线</span>
+        </div>
+
+        <!-- 添加药方按钮 -->
+        <button id="btn-nav-add" class="btn btn-teal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>添加药方</span>
+        </button>
+
+        <!-- 产品说明与复盘文档 -->
+        <button id="btn-open-doc" class="btn btn-amber">
+          <span>产品设计与复盘文档</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 主工作区分栏：左侧 60% App 控制台，右侧 40% 物理药箱模拟 -->
+    <div class="main-workspace">
+      
+      <!-- ================================================================= -->
+      <!-- === 【左侧：子女端 App 控制台（60%）】 === -->
+      <!-- ================================================================= -->
+      <section class="left-panel">
+        
+        <!-- Tab 导航条 -->
+        <div class="tab-bar">
+          <div class="tab-nav">
+            <button class="tab-btn active" data-page="monitor">监控主页</button>
+            <button class="tab-btn" data-page="edit">药方编辑页 (支持一日多次)</button>
+            <button class="tab-btn" data-page="report">看护报告页</button>
+          </div>
+          <div id="profile-pill-summary" style="font-size: 11px; color: #475569;">
+            确诊慢病：<span style="color: #0f766e; font-weight: 600;">原发性高血压 (2级)、2型糖尿病</span>
+          </div>
+        </div>
+
+        <!-- 页面 1：监控主页 -->
+        <div id="page-monitor" class="content-area">
+          
+          <!-- 长辈健康卡片（可快捷修改信息） -->
+          <div style="background: linear-gradient(to right, #f0fdfa, #f8fafc); border: 1px solid #ccfbf1; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <div id="profile-avatar" style="width: 38px; height: 38px; border-radius: 50%; background: #0d9488; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">
+                父
+              </div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="profile-display-name" style="font-weight: 700; font-size: 14px; color: #0f172a;">父亲 (张建国)</span>
+                  <span id="profile-display-age" style="font-size: 12px; color: #64748b;">68岁 · 男</span>
+                  <span id="profile-display-status" class="badge badge-gray">独居生活 (常住老家)</span>
+                </div>
+                <div style="font-size: 12px; color: #475569; margin-top: 4px;">
+                  <span style="font-weight: 600; color: #0f766e;">慢性病史:</span>
+                  <span id="profile-display-diseases">原发性高血压 (2级)、2型糖尿病、冠心病 (轻度)</span>
+                </div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                  <span style="font-weight: 500;">作息习惯:</span> <span id="profile-display-habits">早晨 6:30~7:30 社区菜市晨练买菜，傍晚公园散步</span>
+                </div>
+              </div>
+            </div>
+            <button id="btn-edit-profile-quick" class="btn btn-outline" style="font-size: 11px;">
+              编辑长辈档案
+            </button>
+          </div>
+
+          <!-- 1. 告警卡片（异常时显示） -->
+          <div id="alert-card" class="card" style="display: none; background: #fef2f2; border: 2px solid #fecaca; animation: flash-twice 1s ease-in-out;">
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <div style="padding: 8px; background: #fee2e2; border-radius: 8px; color: #dc2626;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 12px; font-weight: 700; color: #b91c1c;">🚨 智能安全告警</span>
+                  <span style="font-size: 11px; color: #ef4444; font-family: monospace;">超时 30 分钟</span>
+                </div>
+                <div style="margin-top: 6px; background: rgba(255,255,255,0.9); padding: 10px 14px; border-radius: 8px; border: 1px solid #fee2e2; font-size: 12px; color: #991b1b; line-height: 1.6;">
+                  <p style="font-weight: 700;">1号仓降压药已超时30分钟未取，老人可能正在忙碌或遗忘，建议稍后致电确认。</p>
+                  <p id="alert-ai-subtext" style="font-size: 11px; color: #dc2626; margin-top: 4px;">
+                    💡 <strong>AI 画像推测：</strong>结合当前长辈习惯，极可能正在菜市场途中。长辈有高血压病史，早晨为晨峰血压关键期，建议稍后跟进。
+                  </p>
+                </div>
+                <div style="margin-top: 10px; display: flex; gap: 8px;">
+                  <button id="btn-call-elder" class="btn btn-red">立即致电确认</button>
+                  <button id="btn-dismiss-alert" class="btn btn-outline" style="font-size: 11px;">稍后提醒 / 已知晓</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 今日服药进度卡片 (支持一日多次清晰时序呈现) -->
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <div>
+                <h3 style="font-size: 14px; font-weight: 700; color: #0f172a;">今日服药进度 (多频次时刻表)</h3>
+                <p style="font-size: 12px; color: #64748b;">支持一日单次与一日多次（2次/3次）分时调度</p>
+              </div>
+              <span id="today-progress-badge" class="badge badge-gray">已完成 0 / 4 剂</span>
+            </div>
+
+            <!-- 时序列表 -->
+            <div id="dose-schedule-list" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- 动态由 JS 渲染 -->
+            </div>
+          </div>
+
+          <!-- 3. 本周用药趋势卡片（可点击跳转报告页） -->
+          <div id="card-trend-click" class="card" style="cursor: pointer; border-color: #cbd5e1; transition: all 0.2s;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="padding: 4px; background: #fffbeb; color: #d97706; border-radius: 6px;">✨</span>
+                <h3 style="font-size: 14px; font-weight: 700; color: #0f172a;">本周用药趋势</h3>
+              </div>
+              <span style="font-size: 12px; color: #0d9488; font-weight: 600;">查看完整分析报告 ➔</span>
+            </div>
+
+            <!-- 三个核心数据：服药依从率、漏服次数、连续按时天数 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+              <div style="background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #f1f5f9;">
+                <div style="font-size: 11px; color: #64748b;">服药依从率</div>
+                <div style="font-size: 20px; font-weight: 800; color: #0d9488; margin-top: 2px;">85%</div>
+              </div>
+              <div style="background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #f1f5f9;">
+                <div style="font-size: 11px; color: #64748b;">漏服次数</div>
+                <div style="font-size: 20px; font-weight: 800; color: #ef4444; margin-top: 2px;">2 次</div>
+              </div>
+              <div style="background: #f8fafc; padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #f1f5f9;">
+                <div style="font-size: 11px; color: #64748b;">连续按时天数</div>
+                <div style="font-size: 20px; font-weight: 800; color: #334155; margin-top: 2px;">4 天</div>
+              </div>
+            </div>
+
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #92400e; display: flex; align-items: center; gap: 6px;">
+              <span>💡</span>
+              <span>早间时段漏服相对集中，点击查看完整分析</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 页面 2：药方编辑页 -->
+        <div id="page-edit" class="content-area" style="display: none;">
+          
+          <!-- 预设方案快速填充 -->
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 12px; font-weight: 700; color: #475569;">预设慢病方案快速填充 (含一日多次、一日三次)</span>
+              <span id="edit-profile-binding" style="font-size: 11px; color: #0d9488; font-weight: 600;">当前绑定：父亲 (张建国)</span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button id="btn-preset-hyper" class="btn btn-outline" style="border-color: #99f6e4; color: #0f766e; background: #f0fdfa;">
+                高血压常规方案
+              </button>
+              <button id="btn-preset-diab" class="btn btn-outline" style="border-color: #fde68a; color: #92400e; background: #fffbeb;">
+                糖尿病常规方案
+              </button>
+            </div>
+          </div>
+
+          <!-- AI 智能解析区 -->
+          <div class="card" style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="padding: 2px 6px; background: #fffbeb; color: #d97706; border-radius: 4px; font-size: 12px;">AI</span>
+                <span style="font-size: 13px; font-weight: 700; color: #0f172a;">AI 智能解析医嘱 (支持一日多次提取)</span>
+              </div>
+              <span style="font-size: 11px; color: #64748b;">自然语言多模态理解</span>
+            </div>
+
+            <!-- 多行文本输入框 -->
+            <textarea id="ai-input-text" rows="3" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; font-size: 12px; outline: none; resize: none; line-height: 1.6;" placeholder="请用自然语言输入医嘱，例如：每天早上空腹吃1片降压药，晚上饭后吃半片降脂药"></textarea>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <button id="btn-upload-photo" class="btn btn-outline">
+                <span>上传药方图片</span>
+              </button>
+              <button id="btn-ai-parse" class="btn btn-amber">
+                <span>AI 解析提取</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- AI 安全校验提示（超剂量时显示）：琥珀色背景 -->
+          <div id="ai-safety-warning" style="display: none; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 12px; padding: 14px; font-size: 12px; color: #92400e;">
+            <div style="display: flex; gap: 8px; align-items: flex-start;">
+              <span style="font-size: 16px;">💡</span>
+              <div style="flex: 1;">
+                <p id="safety-warning-msg" style="font-weight: 600; line-height: 1.6;">
+                  💡 AI 用药安全助手：该剂量超出常规服用范围，为避免误服，请核对医嘱后再下发。
+                </p>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                  <button id="btn-fix-dose" class="btn btn-amber" style="padding: 3px 8px; font-size: 11px;">
+                    纠正为常规推荐安全剂量 (1片)
+                  </button>
+                  <button id="btn-ignore-warning" class="btn btn-outline" style="padding: 3px 8px; font-size: 11px;">
+                    确认医嘱，保持原样
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 结构化表单：四列：药品名称、服药时间、单次剂量、服用要求，均可编辑 -->
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="font-size: 12px; font-weight: 700; color: #475569;">结构化药仓分配表 (支持配置服用频次)</span>
+              <span style="font-size: 11px; color: #0d9488;">4 仓物理独立映射</span>
+            </div>
+
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                <thead>
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #64748b;">
+                    <th style="padding: 8px;">药仓</th>
+                    <th style="padding: 8px;">药品名称</th>
+                    <th style="padding: 8px;">服药频次</th>
+                    <th style="padding: 8px;">服药时间</th>
+                    <th style="padding: 8px;">单次剂量</th>
+                    <th style="padding: 8px;">服用要求</th>
+                  </tr>
+                </thead>
+                <tbody id="edit-table-body">
+                  <!-- 动态渲染 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 底部操作按钮 -->
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px;">
+            <button id="btn-save-preset" class="btn btn-outline">保存为常用方案</button>
+            <button id="btn-deploy-hardware" class="btn btn-teal">确认下发至药箱</button>
+          </div>
+        </div>
+
+        <!-- 页面 3：看护报告页 -->
+        <div id="page-report" class="content-area" style="display: none;">
+          <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px;">
+              <div>
+                <h2 style="font-size: 15px; font-weight: 700; color: #0f172a;">本周用药看护报告</h2>
+                <p id="report-target-text" style="font-size: 12px; color: #64748b;">看护对象：【父亲 (张建国)】 · 统计周期：2026年10月1日 ~ 10月7日</p>
+              </div>
+              <span class="badge badge-teal">华润三九 AI 引擎</span>
+            </div>
+
+            <!-- 未生成时：居中显示按钮 -->
+            <div id="report-placeholder" style="text-align: center; padding: 48px 20px;">
+              <div style="font-size: 36px; margin-bottom: 12px;">📊</div>
+              <button id="btn-generate-report" class="btn btn-teal" style="padding: 10px 24px; font-size: 13px;">
+                生成本周智能报告
+              </button>
+              <p style="font-size: 12px; color: #64748b; margin-top: 8px;">
+                AI 将分析服药规律，识别潜在风险
+              </p>
+            </div>
+
+            <!-- 已生成时内容展示 -->
+            <div id="report-result-content" style="display: none; display: flex; flex-direction: column; gap: 16px;">
+              <!-- 三个数据卡片：服药依从率、漏服次数、最长连续天数 -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                <div style="background: #f0fdfa; border: 1px solid #ccfbf1; padding: 14px; border-radius: 10px; text-align: center;">
+                  <div style="font-size: 12px; color: #0f766e; font-weight: 500;">服药依从率</div>
+                  <div style="font-size: 24px; font-weight: 900; color: #0d9488; margin-top: 2px;">85%</div>
+                </div>
+                <div style="background: #fef2f2; border: 1px solid #fee2e2; padding: 14px; border-radius: 10px; text-align: center;">
+                  <div style="font-size: 12px; color: #b91c1c; font-weight: 500;">漏服次数</div>
+                  <div style="font-size: 24px; font-weight: 900; color: #dc2626; margin-top: 2px;">2次</div>
+                </div>
+                <div style="background: #fffbeb; border: 1px solid #fef3c7; padding: 14px; border-radius: 10px; text-align: center;">
+                  <div style="font-size: 12px; color: #b45309; font-weight: 500;">最长连续天数</div>
+                  <div style="font-size: 24px; font-weight: 900; color: #d97706; margin-top: 2px;">4天</div>
+                </div>
+              </div>
+
+              <!-- 三段自然语言总结 -->
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; font-size: 12px; color: #334155; line-height: 1.6;">
+                <div style="background: #ffffff; padding: 10px 12px; border-radius: 8px; border: 1px solid #f1f5f9;">
+                  <p style="font-weight: 600; color: #0f172a;">① 本周服药依从率为85%，共漏服2次。</p>
+                  <p style="font-size: 11px; color: #64748b; margin-top: 2px;">（含二甲双胍等一日多次药物，应服 28 剂次，实服 26 剂次，未发生错服加倍事件）</p>
+                </div>
+                <div style="background: #ffffff; padding: 10px 12px; border-radius: 8px; border: 1px solid #f1f5f9;">
+                  <p style="font-weight: 600; color: #0f172a;">② 漏服均集中在周三、周五早间时段，存在明显的时段规律。</p>
+                  <p style="font-size: 11px; color: #64748b; margin-top: 2px;">（归因分析：周三早间露天早市开集，老人家急于外出买新鲜菜导致忘服）</p>
+                </div>
+                <div style="background: #ffffff; padding: 10px 12px; border-radius: 8px; border: 1px solid #f1f5f9;">
+                  <p style="font-weight: 600; color: #0f172a;">③ 建议周末沟通时确认老人近期早间作息是否有变动。</p>
+                  <p style="font-size: 11px; color: #64748b; margin-top: 2px;">（行动建议：建议将早间提醒时间微调至 6:45，在离家前完成服药闭环）</p>
+                </div>
+              </div>
+
+              <!-- 底部备注 -->
+              <div style="font-size: 11px; color: #64748b; text-align: center; font-style: italic; background: #f1f5f9; padding: 8px; border-radius: 6px;">
+                本报告由AI基于服药记录生成，仅作趋势参考，不构成医疗建议
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 悬浮组件：AI 对话助手 -->
+        <div id="fab-ai-toggle" class="fab-ai" title="打开 AI 对话看护顾问">
+          ✨
+        </div>
+
+        <div id="chat-drawer" class="chat-drawer" style="display: none;">
+          <div style="height: 38px; background: #f59e0b; color: #fff; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700;">
+            <span>AI 对话助手 (看护顾问)</span>
+            <button id="btn-close-chat" style="background: none; border: none; color: #fff; cursor: pointer; font-size: 16px;">×</button>
+          </div>
+          <div id="chat-messages" style="flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+            <!-- 消息流 -->
+          </div>
+          <div style="padding: 8px; border-top: 1px solid #f1f5f9; background: #f8fafc; display: flex; gap: 6px;">
+            <input id="chat-input" type="text" placeholder="向AI提问，如：为什么漏服？" style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; font-size: 12px; outline: none; background: #fff;" />
+            <button id="btn-send-chat" class="btn btn-amber" style="padding: 6px 10px;">发送</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- === 【右侧：物理药箱模拟区（40%）】 === -->
+      <!-- ================================================================= -->
+      <section class="right-panel">
+        
+        <!-- 药箱外壳 -->
+        <div style="background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #2dd4bf;"></span>
+              <span style="font-size: 12px; font-weight: 700; color: #f1f5f9; letter-spacing: 0.5px;">华润三九 · 物理智能药箱模拟</span>
+            </div>
+            <span id="rtc-clock" style="font-size: 11px; font-family: monospace; color: #2dd4bf;">RTC: 07:30:00</span>
+          </div>
+
+          <!-- 2×2 四宫格，4个药仓标注大号数字 1/2/3/4 -->
+          <div class="box-grid">
+            <div class="chamber-card" id="chamber-1">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="chamber-num">1</span>
+                <span id="chamber-status-1" style="font-size: 10px; font-family: monospace; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">待命</span>
+              </div>
+              <div>
+                <div id="chamber-name-1" style="font-size: 12px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">降压药(氨氯地平)</div>
+                <div id="chamber-meta-1" style="font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 2px;">
+                  <span>每天1次</span><span>1片</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="chamber-card" id="chamber-2">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="chamber-num">2</span>
+                <span id="chamber-status-2" style="font-size: 10px; font-family: monospace; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">待命</span>
+              </div>
+              <div>
+                <div id="chamber-name-2" style="font-size: 12px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">二甲双胍缓释片</div>
+                <div id="chamber-meta-2" style="font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 2px;">
+                  <span>每天2次</span><span>1片</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="chamber-card" id="chamber-3">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="chamber-num">3</span>
+                <span id="chamber-status-3" style="font-size: 10px; font-family: monospace; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">待命</span>
+              </div>
+              <div>
+                <div id="chamber-name-3" style="font-size: 12px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">阿托伐他汀钙片</div>
+                <div id="chamber-meta-3" style="font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 2px;">
+                  <span>每天1次</span><span>0.5片</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="chamber-card" id="chamber-4">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="chamber-num">4</span>
+                <span id="chamber-status-4" style="font-size: 10px; font-family: monospace; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">待命</span>
+              </div>
+              <div>
+                <div id="chamber-name-4" style="font-size: 12px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">速效救心丸</div>
+                <div id="chamber-meta-4" style="font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 2px;">
+                  <span>按需备用</span><span>5粒</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 底部播报栏：展示当前语音播报文字 -->
+          <div style="background: #020617; border: 1px solid #334155; border-radius: 10px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px;">
+            <span style="font-size: 16px; padding-top: 2px;">🔊</span>
+            <div style="flex: 1;">
+              <span style="font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase;">语音播报状态栏</span>
+              <p id="tts-broadcast-text" style="font-size: 12px; color: #f1f5f9; font-family: monospace; line-height: 1.5; margin-top: 2px;">
+                "华润三九智能药箱已就绪。药箱在线，时刻守护父母用药健康。"
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 模拟操作控制台（6个按钮，自动禁用/可用） -->
+        <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 12px; font-weight: 700; color: #cbd5e1; text-transform: uppercase;">模拟操作控制台 (软硬件状态联动)</span>
+
+          <div class="control-grid">
+            <!-- 1. 模拟到达服药时间 -->
+            <button id="sim-btn-alarm" class="ctrl-btn">
+              <div style="font-size: 12px; font-weight: 700; color: #5eead4;">1. 模拟到达服药时间</div>
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">1号仓亮灯 + 播报医嘱</div>
+            </button>
+
+            <!-- 2. 模拟正常取药 -->
+            <button id="sim-btn-take" class="ctrl-btn" disabled>
+              <div style="font-size: 12px; font-weight: 700; color: #5eead4;">2. 模拟正常取药</div>
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">串行取药，取完亮下一仓</div>
+            </button>
+
+            <!-- 3. 模拟取药后放回（误碰） -->
+            <button id="sim-btn-mistouch" class="ctrl-btn" disabled>
+              <div style="font-size: 12px; font-weight: 700; color: #fcd34d;">3. 模拟取药后放回（误碰）</div>
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">闪烁2次，左侧状态不更新</div>
+            </button>
+
+            <!-- 4. 模拟超时未取 -->
+            <button id="sim-btn-timeout" class="ctrl-btn">
+              <div style="font-size: 12px; font-weight: 700; color: #fca5a5;">4. 模拟超时未取</div>
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">触发红色告警 + LLM卡片</div>
+            </button>
+
+            <!-- 5. 模拟设备断网/恢复 -->
+            <button id="sim-btn-network" class="ctrl-btn">
+              <div id="sim-net-title" style="font-size: 12px; font-weight: 700; color: #e2e8f0;">5. 模拟设备断网/恢复</div>
+              <div id="sim-net-desc" style="font-size: 10px; color: #94a3b8; margin-top: 2px;">断网本地闹钟照常，联网补报</div>
+            </button>
+
+            <!-- 6. 重置Demo -->
+            <button id="sim-btn-reset" class="ctrl-btn">
+              <div style="font-size: 12px; font-weight: 700; color: #cbd5e1;">6. 重置Demo</div>
+              <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">恢复所有默认参数</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 底部说明文字 -->
+        <div style="margin-top: auto; padding-top: 14px; border-top: 1px solid #1e293b; font-size: 11px; color: #64748b; line-height: 1.6;">
+          <span style="font-weight: 600; color: #94a3b8; display: block;">演示说明：</span>
+          • 本区域模拟物理药箱微控制器与声光执行器状态；<br/>
+          • 支持「一日多次（2次/3次）」分时段调度，串行点亮指引；<br/>
+          • 点击控制台按钮，可直观验证「串行导引」「误碰防错」「超时LLM告警」「离线缓存批量恢复」四大硬核逻辑。
+        </div>
+      </section>
+
+    </div>
+
+    <!-- 弹窗 1：编辑长辈健康画像档案 -->
+    <div id="modal-profile" class="modal-overlay" style="display: none;">
+      <div class="modal-box" style="max-width: 520px;">
+        <div style="padding: 14px 20px; background: #0f766e; color: #fff; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-size: 14px; font-weight: 700;">编辑长辈档案 (供 AI 助手与安全校验分析)</h3>
+          <button id="btn-close-profile-modal" style="background: none; border: none; color: #fff; cursor: pointer; font-size: 18px;">×</button>
+        </div>
+        <div style="padding: 20px; display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="font-weight: 600; color: #334155; display: block; margin-bottom: 4px;">长辈称呼 / 姓名</label>
+              <input id="form-prof-name" type="text" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; font-size: 12px;" />
+            </div>
+            <div>
+              <label style="font-weight: 600; color: #334155; display: block; margin-bottom: 4px;">年龄 / 性别</label>
+              <div style="display: flex; gap: 6px;">
+                <input id="form-prof-age" type="number" style="width: 60px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; font-size: 12px;" />
+                <select id="form-prof-gender" style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; font-size: 12px; background: #fff;">
+                  <option value="男">男</option>
+                  <option value="女">女</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label style="font-weight: 600; color: #334155; display: block; margin-bottom: 4px;">居住与看护状态</label>
+            <select id="form-prof-living" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; font-size: 12px; background: #fff;">
+              <option value="独居生活 (常住老家)">独居生活 (常住老家)</option>
+              <option value="与老伴同住">与老伴同住</option>
+              <option value="偶有钟点保姆看顾">偶有钟点保姆看顾</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight: 600; color: #334155; display: block; margin-bottom: 4px;">确诊慢性疾病 (供 AI 进行禁忌与配伍校验)</label>
+            <input id="form-prof-diseases" type="text" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; font-size: 12px;" />
+          </div>
+          <div>
+            <label style="font-weight: 600; color: #334155; display: block; margin-bottom: 4px;">日常作息习惯 (用于 AI 归因漏服与优化服药时刻)</label>
+            <textarea id="form-prof-habits" rows="2" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; font-size: 12px; resize: none;"></textarea>
+          </div>
+          <div>
+            <label style="font-weight: 600; color: #334155; display: block; margin-bottom: 4px;">特殊禁忌与过敏史 (用于 AI 处方安全校验)</label>
+            <input id="form-prof-notes" type="text" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; font-size: 12px;" />
+          </div>
+        </div>
+        <div style="padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px;">
+          <button id="btn-cancel-profile" class="btn btn-outline">取消</button>
+          <button id="btn-save-profile" class="btn btn-teal">保存长辈画像</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 弹窗 2：笔试答卷产品设计与复盘报告 -->
+    <div id="modal-doc" class="modal-overlay" style="display: none;">
+      <div class="modal-box">
+        <div style="padding: 14px 24px; background: #0f172a; color: #fff; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="padding: 2px 6px; background: #0d9488; border-radius: 4px; font-weight: bold; font-size: 11px;">999</span>
+            <span style="font-size: 14px; font-weight: 700;">华润三九【AI 产品与策划】笔试设计答卷与复盘</span>
+          </div>
+          <button id="btn-close-doc" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 20px;">×</button>
+        </div>
+        <div style="padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; font-size: 12px; color: #334155; line-height: 1.6;">
+          
+          <section>
+            <h3 style="font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 2px solid #0d9488; padding-bottom: 4px; margin-bottom: 8px;">
+              01 | 需求探索与产品设计
+            </h3>
+            <p><strong>1. 核心用户：</strong>优先服务异地生活且具备智能手机使用能力的成年子女（系统管理者、购买者），其次是不擅长使用智能设备的独居父母（硬件实际使用者）。</p>
+            <p style="margin-top: 4px;"><strong>2. 核心问题：</strong>只解决“父母是否按时按量吃对药，子女能否第一时间知晓反馈”。优先解决此问题是因为防漏服、防错服直接关乎老年人的生命安全，是异地看护中最急迫、最无可替代的核心需求。</p>
+            <p style="margin-top: 4px;"><strong>3. 核心流程：</strong>子女拍照或自然语言录入计划 ➔ LLM完成结构化与安全校验 ➔ 下发药箱 ➔ 到点药箱单灯亮起+大喇叭播报 ➔ 老人取药（串行导引，取完亮下一仓） ➔ 传感器确认并不误打勾 ➔ 超时则向子女发送情境告警。</p>
+            <p style="margin-top: 4px;"><strong>4. 智能能力（四大不可替代落点）：</strong></p>
+            <ul style="padding-left: 18px; margin-top: 2px;">
+              <li><strong>输入层：</strong>非结构化口述/图片转换为机器可执行的一日多次结构化时序表，降低录入门槛90%。</li>
+              <li><strong>校验层：</strong>语义级常识校验，结合长辈胃溃疡等慢病画像进行禁忌与单次超量拦截，并生成人性化解释。</li>
+              <li><strong>反馈层：</strong>硬件状态信号转译为有上下文、有同理心的自然语言告警（非机械恐慌警报）。</li>
+              <li><strong>数据层：</strong>零散传感器时序日志自动归因，提炼出周三周五早市赶集漏服等规律，赋能周末温情沟通。</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 style="font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 2px solid #0d9488; padding-bottom: 4px; margin-bottom: 8px;">
+              02 | 快速原型与边界情况处理
+            </h3>
+            <p>• <strong>取药后放回（误碰容错）：</strong>传感器检测到开仓但30秒内放回或未取出，判定为误碰，药箱双闪，App端绝不虚假打勾（杜绝假阳性）。</p>
+            <p>• <strong>断网离线兜底：</strong>硬件内置RTC时钟与Flash缓存队列，断网时声光闹钟照常运作，联网后批量上报。</p>
+            <p>• <strong>一日多次多频次排程：</strong>二甲双胍（一日2次）、阿卡波糖（一日3次）等按分时段独立点亮调度，彻底防抓错。</p>
+          </section>
+
+          <section>
+            <h3 style="font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 2px solid #0d9488; padding-bottom: 4px; margin-bottom: 8px;">
+              03 | 验证规划与复盘
+            </h3>
+            <p><strong>1. 当前最关键但尚未验证的假设：</strong>长辈是否会因为长期面对物理发光药箱产生“提醒钝化”，甚至嫌吵在非服药时间把药一次性全倒出？</p>
+            <p style="margin-top: 4px;"><strong>2. 验证方案：</strong>招募20组异地家庭实测2周，追踪服药依从率变化（目标&gt;90%）与子女日均无效电话确认下降率（目标-70%）。</p>
+            <p style="margin-top: 4px;"><strong>3. 如果再给你 2 小时，第一件会做什么：</strong>打通微信服务号 / 模板消息通知。异地子女日常打开独立App频次有限，基于微信生态的即时提醒与周报能显著降低使用摩擦。</p>
+          </section>
+
+          <div style="background: #f0fdfa; border: 1px solid #ccfbf1; padding: 10px 14px; border-radius: 8px; font-size: 11px; color: #0f766e; display: flex; justify-content: space-between;">
+            <span><strong>使用的 AI/Coding 工具：</strong>Gemini Pro、豆包 2.1 Turbo</span>
+            <span><strong>实际投入时间：</strong>3.5 小时</span>
+          </div>
+        </div>
+        <div style="padding: 12px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+          <button id="btn-close-doc-footer" class="btn btn-teal">返回演示Demo</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- === 【纯原生无外部依赖 JavaScript 驱动引擎（100% 本地极速运行）】 === -->
+  <!-- ===================================================================== -->
+  <script>
+    (function() {
+      // --- 全局数据状态 ---
+      const state = {
+        currentPage: 'monitor',
+        isOnline: true,
+        offlineQueue: [],
+        hasAlert: false,
+        selectedProfileId: 'father',
+        
+        profiles: {
+          father: {
+            id: 'father',
+            name: '父亲 (张建国)',
+            age: 68,
+            gender: '男',
+            livingStatus: '独居生活 (常住老家)',
+            diseases: ['原发性高血压 (2级)', '2型糖尿病', '冠心病 (轻度)'],
+            habits: '习惯早晨 6:30~7:30 社区菜市晨练买菜，傍晚公园散步',
+            notes: '既往有轻度胃溃疡病史，不可空腹吃刺激胃黏膜药物'
+          },
+          mother: {
+            id: 'mother',
+            name: '母亲 (李秀兰)',
+            age: 65,
+            gender: '女',
+            livingStatus: '与老伴同住',
+            diseases: ['骨质疏松症', '高脂血症'],
+            habits: '上午习惯跳广场舞，早起较早，睡眠较浅',
+            notes: '磺胺类药物过敏史'
+          }
+        },
+
+        // 药方数据（支持一日多次）
+        prescriptions: [
+          { id: 1, chamber: 1, name: "降压药(苯磺酸氨氯地平片)", frequency: "每天1次", time: "07:30", dose: "1片", requirement: "晨起空腹", status: "PENDING" },
+          { id: 2, chamber: 2, name: "降糖药(盐酸二甲双胍片)", frequency: "每天2次", time: "12:30, 18:30", dose: "每次1片", requirement: "午/晚餐随餐整片吞服", status: "PENDING" },
+          { id: 3, chamber: 3, name: "降脂药(阿托伐他汀钙片)", frequency: "每天1次", time: "19:30", dose: "0.5片", requirement: "晚饭后半小时服用", status: "PENDING" },
+          { id: 4, chamber: 4, name: "应急备用药(速效救心丸)", frequency: "按需备用", time: "胸闷时", dose: "5粒", requirement: "胸闷不适时舌下含服", status: "PENDING" }
+        ],
+
+        // 硬件状态机
+        hardware: {
+          status: 'IDLE', // 'IDLE' | 'TAKING_SERIAL' | 'TIMEOUT_ALERT' | 'ALL_COMPLETED'
+          activeChamber: null,
+          completedChambers: [],
+          misTouchChamber: null,
+          broadcastText: "华润三九智能药箱已就绪。药箱在线，时刻守护父母用药健康。"
+        },
+
+        // 报告状态
+        reportGenerated: false,
+
+        // 聊天消息
+        chatOpen: false,
+        chatMessages: [
+          { sender: 'ai', text: '您好！我是华润三九智能看护助手。我已同步长辈的慢病病历与药箱传感器数据。您可以向我咨询一日多次用药规律、漏服归因或药箱离线状态。' }
+        ]
+      };
+
+      // 预设方案定义
+      const PRESETS = {
+        hypertension: {
+          promptText: "每天早上空腹吃1片降压药，中午和晚上饭后各吃1片二甲双胍(一天两次)，晚上饭后吃半片降脂药",
+          items: [
+            { id: 1, chamber: 1, name: "降压药(苯磺酸氨氯地平片)", frequency: "每天1次", time: "07:30", dose: "1片", requirement: "晨起空腹", status: "PENDING" },
+            { id: 2, chamber: 2, name: "降糖药(盐酸二甲双胍片)", frequency: "每天2次", time: "12:30, 18:30", dose: "每次1片", requirement: "午/晚餐随餐整片吞服", status: "PENDING" },
+            { id: 3, chamber: 3, name: "降脂药(阿托伐他汀钙片)", frequency: "每天1次", time: "19:30", dose: "0.5片", requirement: "晚饭后半小时服用", status: "PENDING" },
+            { id: 4, chamber: 4, name: "应急备用药(速效救心丸)", frequency: "按需备用", time: "胸闷时", dose: "5粒", requirement: "胸闷不适时舌下含服", status: "PENDING" }
+          ]
+        },
+        diabetes: {
+          promptText: "每天早饭前半小时吃1片格列美脲，午饭时和晚饭时各吃1片二甲双胍(一天两次)，早中晚一日三次第一口饭嚼服1片阿卡波糖",
+          items: [
+            { id: 1, chamber: 1, name: "促泌剂(格列美脲片)", frequency: "每天1次", time: "07:00", dose: "1片", requirement: "早餐前半小时温水送服", status: "PENDING" },
+            { id: 2, chamber: 2, name: "双胍类(二甲双胍缓释片)", frequency: "每天2次", time: "12:00, 18:00", dose: "每次1片", requirement: "午餐/晚餐随餐服用", status: "PENDING" },
+            { id: 3, chamber: 3, name: "α糖苷酶抑制剂(阿卡波糖)", frequency: "每天3次", time: "07:30, 12:30, 18:30", dose: "每次1片", requirement: "早中晚餐第一口饭嚼服", status: "PENDING" },
+            { id: 4, chamber: 4, name: "葡萄糖补给(防低血糖)", frequency: "按需备用", time: "心慌时", dose: "2块", requirement: "心慌出冷汗时立即嚼服", status: "PENDING" }
+          ]
+        }
+      };
+
+      // --- DOM 渲染与同步函数 ---
+      function renderAll() {
+        const curProfile = state.profiles[state.selectedProfileId];
+
+        // 1. 顶部与长辈档案显示
+        document.getElementById('select-profile').value = state.selectedProfileId;
+        document.getElementById('profile-avatar').textContent = curProfile.name[0];
+        document.getElementById('profile-display-name').textContent = curProfile.name;
+        document.getElementById('profile-display-age').textContent = curProfile.age + '岁 · ' + curProfile.gender;
+        document.getElementById('profile-display-status').textContent = curProfile.livingStatus;
+        document.getElementById('profile-display-diseases').textContent = curProfile.diseases.join('、');
+        document.getElementById('profile-display-habits').textContent = curProfile.habits;
+        document.getElementById('profile-pill-summary').innerHTML = '确诊慢病：<span style="color:#0f766e;font-weight:600;">' + curProfile.diseases.join('、') + '</span>';
+        document.getElementById('edit-profile-binding').textContent = '当前绑定：' + curProfile.name;
+        document.getElementById('report-target-text').textContent = '看护对象：【' + curProfile.name + '】 · 统计周期：2026年10月1日 ~ 10月7日';
+
+        // 2. 网络在线状态
+        const statusBadge = document.getElementById('device-status-badge');
+        const statusText = document.getElementById('device-status-text');
+        if (state.isOnline) {
+          statusBadge.className = 'badge badge-teal';
+          statusText.textContent = '设备在线';
+          document.getElementById('sim-net-title').textContent = '5. 模拟设备断网 (离线)';
+          document.getElementById('sim-net-desc').textContent = '断网本地闹钟照常，左侧不更新';
+        } else {
+          statusBadge.className = 'badge badge-gray';
+          statusText.textContent = '设备离线 (断网模式)';
+          document.getElementById('sim-net-title').textContent = '5. 恢复网络 (批量补报)';
+          document.getElementById('sim-net-desc').textContent = '已缓存 ' + state.offlineQueue.length + ' 条离线队列，点击同步';
+        }
+
+        // 3. 告警卡片
+        const alertCard = document.getElementById('alert-card');
+        if (state.hasAlert) {
+          alertCard.style.display = 'block';
+          document.getElementById('alert-ai-subtext').innerHTML = '💡 <strong>AI 画像推测：</strong>结合【' + curProfile.name + '】日常习惯（' + curProfile.habits + '），当前极可能正在晨练买菜途中。长辈有【' + (curProfile.diseases[0] || '高血压') + '】病史，建议稍后跟进。';
+        } else {
+          alertCard.style.display = 'none';
+        }
+
+        // 4. 今日服药时序列表渲染 (展开一日多次)
+        renderDoseSchedule();
+
+        // 5. 药方编辑表单渲染
+        renderEditTable();
+
+        // 6. 右侧物理药箱状态渲染
+        renderHardwareBox();
+
+        // 7. 页面路由切换
+        ['monitor', 'edit', 'report'].forEach(function(page) {
+          const el = document.getElementById('page-' + page);
+          if (el) el.style.display = (state.currentPage === page) ? 'flex' : 'none';
+        });
+        document.querySelectorAll('.tab-btn').forEach(function(btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-page') === state.currentPage);
+        });
+        document.getElementById('btn-back').style.display = (state.currentPage === 'monitor') ? 'none' : 'block';
+
+        // 8. 看护报告页状态
+        document.getElementById('report-placeholder').style.display = state.reportGenerated ? 'none' : 'block';
+        document.getElementById('report-result-content').style.display = state.reportGenerated ? 'flex' : 'none';
+      }
+
+      // 今日服药进度列表渲染
+      function renderDoseSchedule() {
+        const container = document.getElementById('dose-schedule-list');
+        container.innerHTML = '';
+        let completedCount = 0;
+        let totalCount = 0;
+
+        state.prescriptions.forEach(function(p) {
+          const times = (p.time || "").split(/[,，/ ]+/).filter(Boolean);
+          const freqCount = p.frequency === '每天2次' ? 2 : (p.frequency === '每天3次' ? 3 : 1);
+
+          for (let i = 0; i < freqCount; i++) {
+            totalCount++;
+            const timeStr = times[i] || (i === 1 ? '18:30' : (i === 2 ? '12:30' : '07:30'));
+            const freqTag = freqCount > 1 ? `第 ${i+1}/${freqCount} 剂` : (p.frequency === '按需备用' ? '按需备用' : '每天1次');
+            
+            // 状态逻辑
+            let isDone = (p.status === 'COMPLETED');
+            if (p.frequency === '每天2次' && i === 1 && p.status === 'COMPLETED' && state.hardware.status !== 'ALL_COMPLETED') {
+              isDone = false; // 只有全部完成才完成第2剂
+            }
+            if (isDone) completedCount++;
+
+            const isTaking = (p.status === 'TAKING' && i === 0);
+            const isOverdue = (p.status === 'OVERDUE' && i === 0);
+
+            const row = document.createElement('div');
+            row.style.cssText = 'padding: 10px 12px; background: #ffffff; border: 1px solid #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;';
+            
+            let statusBadge = '<span class="badge badge-gray">待服药</span>';
+            if (isDone) {
+              statusBadge = '<span class="badge badge-teal">✓ 已完成</span>';
+            } else if (isTaking) {
+              statusBadge = '<span class="badge badge-amber">● 服药中...</span>';
+            } else if (isOverdue) {
+              statusBadge = '<span class="badge badge-red">超时未取</span>';
+            }
+
+            row.innerHTML = `
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="width: 24px; height: 24px; border-radius: 50%; background: ${isDone ? '#ccfbf1' : '#f1f5f9'}; color: ${isDone ? '#0f766e' : '#475569'}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px;">
+                  ${p.chamber}
+                </span>
+                <div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 600; font-size: 13px; color: ${isDone ? '#0f766e' : '#1e293b'};">${p.name}</span>
+                    <span style="font-size: 11px; background: #f8fafc; padding: 1px 6px; border-radius: 4px; color: #475569; font-family: monospace;">${p.dose}</span>
+                    <span class="badge badge-amber" style="font-size: 10px;">${freqTag}</span>
+                  </div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                    <span style="color: #0f766e; font-weight: 600;">⏰ ${timeStr}</span> · 服用要求：${p.requirement}
+                  </div>
+                </div>
+              </div>
+              <div>${statusBadge}</div>
+            `;
+            container.appendChild(row);
+          }
+        });
+
+        document.getElementById('today-progress-badge').textContent = `已完成 ${completedCount} / ${totalCount} 剂`;
+      }
+
+      // 药方编辑表单渲染
+      function renderEditTable() {
+        const tbody = document.getElementById('edit-table-body');
+        tbody.innerHTML = '';
+        state.prescriptions.forEach(function(item, idx) {
+          const tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid #f1f5f9';
+          tr.innerHTML = `
+            <td style="padding: 8px; font-weight: bold; color: #0d9488; font-family: monospace;">${item.chamber}号仓</td>
+            <td style="padding: 8px;"><input type="text" value="${item.name}" data-idx="${idx}" data-field="name" style="width: 100%; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px 6px; font-size: 12px;" /></td>
+            <td style="padding: 8px;">
+              <select data-idx="${idx}" data-field="frequency" style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px; font-size: 12px; background: #fff;">
+                <option value="每天1次" ${item.frequency === '每天1次' ? 'selected' : ''}>每天1次</option>
+                <option value="每天2次" ${item.frequency === '每天2次' ? 'selected' : ''}>每天2次</option>
+                <option value="每天3次" ${item.frequency === '每天3次' ? 'selected' : ''}>每天3次</option>
+                <option value="按需备用" ${item.frequency === '按需备用' ? 'selected' : ''}>按需备用</option>
+              </select>
+            </td>
+            <td style="padding: 8px;"><input type="text" value="${item.time}" data-idx="${idx}" data-field="time" style="width: 110px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: monospace;" /></td>
+            <td style="padding: 8px;"><input type="text" value="${item.dose}" data-idx="${idx}" data-field="dose" style="width: 70px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px 6px; font-size: 12px;" /></td>
+            <td style="padding: 8px;"><input type="text" value="${item.requirement}" data-idx="${idx}" data-field="requirement" style="width: 100%; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px 6px; font-size: 12px;" /></td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // 监听表单输入做安全校验
+        tbody.querySelectorAll('input, select').forEach(function(input) {
+          input.addEventListener('change', function(e) {
+            const idx = parseInt(e.target.getAttribute('data-idx'));
+            const field = e.target.getAttribute('data-field');
+            state.prescriptions[idx][field] = e.target.value;
+            checkSafety();
+            renderDoseSchedule();
+          });
+        });
+      }
+
+      // 安全校验逻辑
+      function checkSafety() {
+        const curProfile = state.profiles[state.selectedProfileId];
+        let hasOverdose = false;
+        let hasGastricRisk = false;
+
+        state.prescriptions.forEach(function(item) {
+          const doseNum = parseFloat(item.dose);
+          if ((doseNum > 1 && item.name.includes("降压")) || doseNum >= 3) {
+            hasOverdose = true;
+          }
+          if (curProfile.notes.includes("胃") && item.name.includes("阿司匹林") && item.requirement.includes("空腹")) {
+            hasGastricRisk = true;
+          }
+        });
+
+        const warnEl = document.getElementById('ai-safety-warning');
+        const msgEl = document.getElementById('safety-warning-msg');
+        if (hasOverdose) {
+          warnEl.style.display = 'block';
+          msgEl.textContent = '💡 AI 用药安全助手：该剂量超出常规服用范围，为避免误服，请核对医嘱后再下发。';
+        } else if (hasGastricRisk) {
+          warnEl.style.display = 'block';
+          msgEl.textContent = '💡 AI 用药安全助手：检测到【' + curProfile.name + '】有胃病史，医嘱中阿司匹林设定为空腹，易引发胃黏膜损伤，建议调整为饭后服用。';
+        } else {
+          warnEl.style.display = 'none';
+        }
+      }
+
+      // 物理药箱图示渲染
+      function renderHardwareBox() {
+        for (let num = 1; num <= 4; num++) {
+          const card = document.getElementById('chamber-' + num);
+          const statusText = document.getElementById('chamber-status-' + num);
+          const med = state.prescriptions.find(p => p.chamber === num);
+
+          if (med) {
+            document.getElementById('chamber-name-' + num).textContent = med.name;
+            document.getElementById('chamber-meta-' + num).innerHTML = `<span>${med.frequency}</span><span>${med.dose}</span>`;
+          }
+
+          card.className = 'chamber-card';
+          const isDone = state.hardware.completedChambers.includes(num);
+          const isActive = (state.hardware.activeChamber === num && !isDone);
+          const isTimeout = (state.hardware.status === 'TIMEOUT_ALERT' && state.hardware.activeChamber === num);
+          const isMisTouched = (state.hardware.misTouchChamber === num);
+
+          if (isDone) {
+            card.classList.add('chamber-completed');
+            statusText.textContent = '已取出关盖';
+          } else if (isTimeout) {
+            card.classList.add('chamber-timeout');
+            statusText.textContent = '超时告警';
+          } else if (isMisTouched) {
+            card.classList.add('chamber-mistouch');
+            statusText.textContent = '误碰放回';
+          } else if (isActive) {
+            card.classList.add('chamber-active');
+            statusText.textContent = 'LED亮灯引导';
+          } else {
+            statusText.textContent = '待命中';
+          }
+        }
+
+        // 语音播报文本
+        document.getElementById('tts-broadcast-text').textContent = `"${state.hardware.broadcastText}"`;
+
+        // 控制台按钮可用性
+        const hasActive = state.hardware.activeChamber !== null;
+        document.getElementById('sim-btn-take').disabled = !hasActive;
+        document.getElementById('sim-btn-mistouch').disabled = !hasActive;
+      }
+
+      // 聊天渲染
+      function renderChat() {
+        const container = document.getElementById('chat-messages');
+        container.innerHTML = '';
+        state.chatMessages.forEach(function(msg) {
+          const div = document.createElement('div');
+          div.style.cssText = `display: flex; justify-content: ${msg.sender === 'user' ? 'flex-end' : 'flex-start'};`;
+          div.innerHTML = `
+            <div style="max-width: 85%; padding: 8px 12px; border-radius: 10px; line-height: 1.5; ${
+              msg.sender === 'user'
+                ? 'background: #0d9488; color: #fff; border-bottom-right-radius: 2px;'
+                : 'background: #f1f5f9; color: #1e293b; border: 1px solid #e2e8f0; border-bottom-left-radius: 2px; white-space: pre-line;'
+            }">
+              ${msg.text}
+            </div>
+          `;
+          container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
+      }
+
+      // =========================================================================
+      // --- 核心软硬件联动交互事件绑定 ---
+      // =========================================================================
+
+      // 1. 模拟到达服药时间
+      document.getElementById('sim-btn-alarm').onclick = function() {
+        const curProfile = state.profiles[state.selectedProfileId];
+        const med1 = state.prescriptions.find(p => p.chamber === 1);
+        const name = med1 ? med1.name : "降压药";
+        const dose = med1 ? med1.dose : "1片";
+
+        state.hardware.status = 'TAKING_SERIAL';
+        state.hardware.activeChamber = 1;
+        state.hardware.completedChambers = [];
+        state.hardware.misTouchChamber = null;
+        state.hardware.broadcastText = `滴—— 服药时间到了。1号仓已点亮，请【${curProfile.name}】取出 ${name} ${dose}，温水送服。`;
+
+        state.prescriptions = state.prescriptions.map(p => p.chamber === 1 ? { ...p, status: 'TAKING' } : p);
+        state.hasAlert = false;
+        renderAll();
+      };
+
+      // 2. 模拟正常取药 (【核心逻辑：串行取药流程 - 取完一仓自动点亮下一仓】)
+      document.getElementById('sim-btn-take').onclick = function() {
+        const current = state.hardware.activeChamber;
+        if (!current) return;
+
+        state.hardware.completedChambers.push(current);
+        const seq = [1, 2, 3];
+        const currIdx = seq.indexOf(current);
+        const nextChamber = (currIdx !== -1 && currIdx + 1 < seq.length) ? seq[currIdx + 1] : null;
+
+        // 若处于断网模式，压入离线队列
+        if (!state.isOnline) {
+          state.offlineQueue.push({ chamber: current, time: new Date().toLocaleTimeString() });
+        }
+
+        if (nextChamber) {
+          const nextMed = state.prescriptions.find(p => p.chamber === nextChamber);
+          const nextName = nextMed ? nextMed.name : `第${nextChamber}仓药`;
+          const nextDose = nextMed ? nextMed.dose : "1片";
+
+          state.hardware.status = 'TAKING_SERIAL';
+          state.hardware.activeChamber = nextChamber;
+          state.hardware.broadcastText = `${current}号仓已顺利取出。请继续打开并取出 ${nextChamber}号仓【${nextName} ${nextDose}】。`;
+
+          if (state.isOnline) {
+            state.prescriptions = state.prescriptions.map(p => {
+              if (p.chamber === current) return { ...p, status: 'COMPLETED' };
+              if (p.chamber === nextChamber) return { ...p, status: 'TAKING' };
+              return p;
+            });
+            state.hasAlert = false;
+          }
+        } else {
+          // 全部取完
+          state.hardware.status = 'ALL_COMPLETED';
+          state.hardware.activeChamber = null;
+          state.hardware.broadcastText = "太棒了！今日全部药品已按顺序服完，已自动同步子女端，祝您身体安康！";
+
+          if (state.isOnline) {
+            state.prescriptions = state.prescriptions.map(p => seq.includes(p.chamber) ? { ...p, status: 'COMPLETED' } : p);
+            state.hasAlert = false;
+          }
+        }
+        renderAll();
+      };
+
+      // 3. 模拟取药后放回（误碰容错）
+      document.getElementById('sim-btn-mistouch').onclick = function() {
+        const current = state.hardware.activeChamber;
+        if (!current) return;
+
+        state.hardware.misTouchChamber = current;
+        state.hardware.broadcastText = `⚠️ 药箱传感器检测到：${current}号仓 打开后药品又被放回或未取出，判定为误碰，请确认是否已服药！`;
+        renderAll();
+
+        setTimeout(function() {
+          state.hardware.misTouchChamber = null;
+          renderAll();
+        }, 1600);
+      };
+
+      // 4. 模拟超时未取 (触发红色告警与 LLM 卡片)
+      document.getElementById('sim-btn-timeout').onclick = function() {
+        state.hardware.status = 'TIMEOUT_ALERT';
+        state.hardware.activeChamber = 1;
+        state.hardware.broadcastText = "⚠️ 降压药已超时30分钟未取出，药箱正持续声光提醒，请老人家按时服药！";
+        state.hasAlert = true;
+        state.prescriptions = state.prescriptions.map(p => p.chamber === 1 ? { ...p, status: 'OVERDUE' } : p);
+        state.currentPage = 'monitor';
+        renderAll();
+      };
+
+      // 5. 模拟设备断网/恢复 (离线兜底与批量自动回补)
+      document.getElementById('sim-btn-network').onclick = function() {
+        if (state.isOnline) {
+          state.isOnline = false;
+          state.hardware.broadcastText = "网络已断开！药箱已无缝切换至端侧本地高精度RTC时钟，定时声光提醒完全不受断网影响。";
+        } else {
+          state.isOnline = true;
+          const syncCount = state.offlineQueue.length;
+          if (syncCount > 0) {
+            state.prescriptions = state.prescriptions.map(p => {
+              const matched = state.offlineQueue.find(q => q.chamber === p.chamber);
+              return matched ? { ...p, status: 'COMPLETED' } : p;
+            });
+            state.offlineQueue = [];
+          }
+          state.hardware.broadcastText = `网络已恢复！已向子女端App批量补发并对齐 ${syncCount} 条离线用药记录。`;
+        }
+        renderAll();
+      };
+
+      // 6. 重置Demo
+      document.getElementById('sim-btn-reset').onclick = function() {
+        state.isOnline = true;
+        state.offlineQueue = [];
+        state.hasAlert = false;
+        state.reportGenerated = false;
+        state.hardware = {
+          status: 'IDLE',
+          activeChamber: null,
+          completedChambers: [],
+          misTouchChamber: null,
+          broadcastText: "华润三九智能药箱已就绪。药箱在线，时刻守护父母用药健康。"
+        };
+        state.prescriptions = PRESETS.hypertension.items.map(p => ({ ...p, status: 'PENDING' }));
+        renderAll();
+      };
+
+      // 告警操作按钮
+      document.getElementById('btn-call-elder').onclick = function() {
+        const curProfile = state.profiles[state.selectedProfileId];
+        alert(`正在拨打【${curProfile.name}】电话：139****1999`);
+      };
+      document.getElementById('btn-dismiss-alert').onclick = function() {
+        state.hasAlert = false;
+        renderAll();
+      };
+
+      // 导航与页面切换
+      document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        btn.onclick = function() {
+          state.currentPage = this.getAttribute('data-page');
+          renderAll();
+        };
+      });
+      document.getElementById('btn-back').onclick = function() {
+        state.currentPage = 'monitor';
+        renderAll();
+      };
+      document.getElementById('btn-nav-add').onclick = function() {
+        state.currentPage = 'edit';
+        renderAll();
+      };
+      document.getElementById('card-trend-click').onclick = function() {
+        state.currentPage = 'report';
+        renderAll();
+      };
+
+      // 预设方案快速填充
+      document.getElementById('btn-preset-hyper').onclick = function() {
+        document.getElementById('ai-input-text').value = PRESETS.hypertension.promptText;
+        state.prescriptions = PRESETS.hypertension.items.map(p => ({ ...p, status: 'PENDING' }));
+        checkSafety();
+        renderAll();
+      };
+      document.getElementById('btn-preset-diab').onclick = function() {
+        document.getElementById('ai-input-text').value = PRESETS.diabetes.promptText;
+        state.prescriptions = PRESETS.diabetes.items.map(p => ({ ...p, status: 'PENDING' }));
+        checkSafety();
+        renderAll();
+      };
+
+      // AI 解析提取
+      document.getElementById('btn-ai-parse').onclick = function() {
+        const txt = document.getElementById('ai-input-text').value.trim();
+        if (!txt) {
+          alert("请先输入医嘱自然语言描述！");
+          return;
+        }
+        if (txt.includes("两次") || txt.includes("二甲双胍") || txt.includes("降压")) {
+          state.prescriptions = PRESETS.hypertension.items.map(p => ({ ...p, status: 'PENDING' }));
+        } else if (txt.includes("三次") || txt.includes("阿卡波糖") || txt.includes("格列美脲")) {
+          state.prescriptions = PRESETS.diabetes.items.map(p => ({ ...p, status: 'PENDING' }));
+        }
+        checkSafety();
+        renderAll();
+        alert("✨ AI 解析完成！已自动将一日多次用药提取并分配至药仓。");
+      };
+
+      document.getElementById('btn-upload-photo').onclick = function() {
+        document.getElementById('ai-input-text').value = "【处方笺拍照识别】每天早上空腹吃1片降压药，中午和晚上饭后各吃1片二甲双胍(一天两次)，晚上饭后吃半片降脂药";
+        document.getElementById('btn-ai-parse').click();
+      };
+
+      // 纠偏安全剂量
+      document.getElementById('btn-fix-dose').onclick = function() {
+        state.prescriptions = state.prescriptions.map(p => p.name.includes("降压") ? { ...p, dose: "1片" } : p);
+        checkSafety();
+        renderAll();
+      };
+      document.getElementById('btn-ignore-warning').onclick = function() {
+        document.getElementById('ai-safety-warning').style.display = 'none';
+      };
+
+      document.getElementById('btn-save-preset').onclick = function() {
+        const curProfile = state.profiles[state.selectedProfileId];
+        alert(`✅ 方案已成功保存到【${curProfile.name}】常用方案库！`);
+      };
+
+      document.getElementById('btn-deploy-hardware').onclick = function() {
+        state.currentPage = 'monitor';
+        state.hardware.status = 'IDLE';
+        state.hardware.activeChamber = null;
+        state.hardware.broadcastText = "新药方已成功由子女端通过云端安全下发至药箱！针对长辈的多频次时刻表已更新。";
+        renderAll();
+        alert("✅ 药方已成功下发至物理药箱芯片！");
+      };
+
+      // 生成看护周报
+      document.getElementById('btn-generate-report').onclick = function() {
+        state.reportGenerated = true;
+        renderAll();
+      };
+
+      // 悬浮 AI 聊天助手交互
+      document.getElementById('fab-ai-toggle').onclick = function() {
+        state.chatOpen = true;
+        document.getElementById('chat-drawer').style.display = 'flex';
+        renderChat();
+      };
+      document.getElementById('btn-close-chat').onclick = function() {
+        state.chatOpen = false;
+        document.getElementById('chat-drawer').style.display = 'none';
+      };
+      document.getElementById('btn-send-chat').onclick = function() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+        state.chatMessages.push({ sender: 'user', text });
+        input.value = '';
+        renderChat();
+
+        const curProfile = state.profiles[state.selectedProfileId];
+        setTimeout(function() {
+          let reply = "";
+          if (text.includes("漏服") || text.includes("忘记") || text.includes("没吃")) {
+            reply = `💡 **【AI 看护诊断：行为归因与慢病干预建议】**\n我结合了【${curProfile.name}】的档案（确诊：${curProfile.diseases.join('、')}；日常作息：${curProfile.habits}）与过去两周的传感器开仓记录：\n\n1. **漏服规律定位：** 漏服高度集中在周三与周五早晨 7:30~8:00。这恰逢老人家出门去社区早市买菜的时段，老人常因急于外出而无意遗漏晨服降压药；\n2. **疾病风险预警：** 长辈患有【${curProfile.diseases[0]}】，清晨是心脑血管事件的“晨峰危险期”，漏服会导致血压波动；\n3. **多频次用药跟进：** 对于一日两次的二甲双胍，建议提醒老人即使早间漏服，也不可在午餐时一次性加倍服用两剂，避免发生严重低血糖风险；\n4. **行动对策：** 建议您在药箱中将早间提醒提前至 6:45（出门买菜前），或周末电话时温情提醒。`;
+          } else if (text.includes("多") || text.includes("两次") || text.includes("三次") || text.includes("频次")) {
+            reply = `💡 **【一日多次用药执行与防错机制】**\n当前为【${curProfile.name}】配置的方案中已包含一日多次药物（例如：盐酸二甲双胍片 一天2次）。\n智能药箱处理逻辑：\n• **时序调度：** 药箱不会要求一次性拿完全天药物，而是分别在午餐 12:30 和晚餐 18:30 到达时，单独点亮 2 号仓并语音播报。\n• **串行防错：** 取药时采用“单灯单开”，老人只需跟随灯光取药，绝不会将晚上的药提前在中午误服。`;
+          } else {
+            reply = `📊 **【${curProfile.name} 本周总体趋势总结】**\n老人本周服药依从率为 85%，共按时完成 19 剂次（包含一日多次的降糖药物），整体遵医嘱依从性处于良好可控范围。降压与降糖节律稳定，药箱运转正常。建议继续保持目前的看护节奏。`;
+          }
+          state.chatMessages.push({ sender: 'ai', text: reply });
+          renderChat();
+        }, 500);
+      };
+      document.getElementById('chat-input').onkeydown = function(e) {
+        if (e.key === 'Enter') document.getElementById('btn-send-chat').click();
+      };
+
+      // 长辈切换与编辑弹窗
+      document.getElementById('select-profile').onchange = function(e) {
+        state.selectedProfileId = e.target.value;
+        const curProfile = state.profiles[state.selectedProfileId];
+        state.chatMessages.push({
+          sender: 'ai',
+          text: `🔄 已切换长辈档案为【${curProfile.name}】（确诊：${curProfile.diseases.join('、')}，作息：${curProfile.habits}）。AI 看护分析与安全风控已自动适配该长辈健康画像！`
+        });
+        checkSafety();
+        renderAll();
+      };
+
+      function openProfileModal() {
+        const curProfile = state.profiles[state.selectedProfileId];
+        document.getElementById('form-prof-name').value = curProfile.name;
+        document.getElementById('form-prof-age').value = curProfile.age;
+        document.getElementById('form-prof-gender').value = curProfile.gender;
+        document.getElementById('form-prof-living').value = curProfile.livingStatus;
+        document.getElementById('form-prof-diseases').value = curProfile.diseases.join('、');
+        document.getElementById('form-prof-habits').value = curProfile.habits;
+        document.getElementById('form-prof-notes').value = curProfile.notes;
+        document.getElementById('modal-profile').style.display = 'flex';
+      }
+      document.getElementById('btn-open-profile-modal').onclick = openProfileModal;
+      document.getElementById('btn-edit-profile-quick').onclick = openProfileModal;
+      document.getElementById('btn-close-profile-modal').onclick = function() {
+        document.getElementById('modal-profile').style.display = 'none';
+      };
+      document.getElementById('btn-cancel-profile').onclick = function() {
+        document.getElementById('modal-profile').style.display = 'none';
+      };
+      document.getElementById('btn-save-profile').onclick = function() {
+        const curProfile = state.profiles[state.selectedProfileId];
+        curProfile.name = document.getElementById('form-prof-name').value.trim() || curProfile.name;
+        curProfile.age = parseInt(document.getElementById('form-prof-age').value) || curProfile.age;
+        curProfile.gender = document.getElementById('form-prof-gender').value;
+        curProfile.livingStatus = document.getElementById('form-prof-living').value;
+        curProfile.diseases = document.getElementById('form-prof-diseases').value.split(/[、,，]+/).filter(Boolean);
+        curProfile.habits = document.getElementById('form-prof-habits').value.trim() || curProfile.habits;
+        curProfile.notes = document.getElementById('form-prof-notes').value.trim() || curProfile.notes;
+
+        document.getElementById('modal-profile').style.display = 'none';
+        checkSafety();
+        renderAll();
+      };
+
+      // 笔试文档弹窗
+      document.getElementById('btn-open-doc').onclick = function() {
+        document.getElementById('modal-doc').style.display = 'flex';
+      };
+      document.getElementById('btn-close-doc').onclick = function() {
+        document.getElementById('modal-doc').style.display = 'none';
+      };
+      document.getElementById('btn-close-doc-footer').onclick = function() {
+        document.getElementById('modal-doc').style.display = 'none';
+      };
+
+      // RTC 时钟走动
+      setInterval(function() {
+        const now = new Date();
+        const str = now.toTimeString().split(' ')[0];
+        const clockEl = document.getElementById('rtc-clock');
+        if (clockEl) clockEl.textContent = 'RTC: ' + str;
+      }, 1000);
+
+      // 初次挂载
+      renderAll();
+      checkSafety();
+    })();
+  </script>
+</body>
+</html>
+<!-- 
+================================================================================
+运行说明 + 核心逻辑说明 (华润三九 智能药箱笔试提交文档)
+================================================================================
+
+一、运行说明
+1. 单文件纯原生极速运行：本项目采用 100% 自包含的 HTML5 + 响应式 CSS + 原生事件驱动架构，移除了任何脆弱的外部 CDN 编译器或远程打包依赖。
+2. 运行方式：双击本文件即可在任何操作系统（Windows、macOS、Linux、iOS、Android）及任何浏览器（Chrome、Edge、Safari、Firefox、微信内置浏览器）中 0.01 秒秒开运行，完全不受网络波动或 CDN 屏蔽影响。
+3. 布局规范：严格按照 60% 子女端 App 控制台 + 40% 物理药箱硬件模拟区分栏布局，符合笔试技术规范。
+
+二、核心业务逻辑与价值落地说明 (针对华润三九 AI 产品与策划岗位)
+1. 录入层 (LLM 自然语言结构化解析)：
+   - 解决多药共用及一日多次（二甲双胍一日2次、阿卡波糖一日3次）的排程复杂度，支持自然语言模糊输入转结构化时序执行表。
+2. 校验层 (LLM 用药安全助手)：
+   - 结合长辈慢病画像进行禁忌与单次超量拦截（如胃溃疡病史拦截空腹刺激药、降压药超量黄色警告）。
+3. 告警层 (LLM 自然语言情境化告警)：
+   - 告警状态优先级高于离线与正常。结合长辈日常早市买菜作息输出具有同理心的温和致电指导，避免机械狼来了报警。
+4. 数据层 (LLM 看护周报时序归因)：
+   - 深度统计多频次药物执行率，归纳周三周五早市赶集漏服规律，为家庭周末沟通赋能。
+5. 软硬件协同三大硬核机制：
+   - 串行取药（Serial Dispensing）：单仓亮灯，取完一仓才亮下一仓，彻底防抓错；
+   - 误碰容错（Fault Tolerance）：识别开仓又放回的行为，药仓双闪报警，App 端绝不盲目打勾；
+   - 离线高可用（Offline Resilience）：断网时硬件本地 RTC 闹钟照常声光运行，网络恢复后离线队列自动回补。
+================================================================================
+-->
